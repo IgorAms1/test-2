@@ -39,22 +39,22 @@ def get_anthropic_client(api_key):
 openai_client = get_openai_client(openai_api_key)
 anthropic_client = get_anthropic_client(anthropic_api_key)
 
-# Выбор моделей
-available_models = {
-    "OpenAI": ["gpt-3.5-turbo", "gpt-4"],
-    "Anthropic": ["claude-2", "claude-instant-1"]
-}
-
-selected_models = st.multiselect("Выберите модели для использования:", 
-                                 [model for provider in available_models for model in available_models[provider]])
+# Ввод моделей пользователем
+st.subheader("Введите модели для использования:")
+models_input = st.text_area("Введите названия моделей (по одной на строку):", height=100)
+selected_models = [model.strip() for model in models_input.split('\n') if model.strip()]
 
 if not selected_models:
-    st.warning("Пожалуйста, выберите хотя бы одну модель для продолжения.")
+    st.warning("Пожалуйста, введите хотя бы одну модель для продолжения.")
     st.stop()
+
+# Редактирование стандартного промпта оценки
+default_rating_prompt = "You are a memory expert. Rate the following mnemonic association on a scale from 1 to 100 based on how easy it is to remember. Return only the numeric score."
+rating_prompt = st.text_area("Отредактируйте промпт для оценки запоминаемости:", value=default_rating_prompt, height=100)
 
 async def create_mnemonic(word: str, prompt: str, model: str) -> Dict[str, Any]:
     try:
-        if model in available_models["OpenAI"]:
+        if "gpt" in model.lower():
             if not openai_client:
                 raise ValueError("API ключ OpenAI не предоставлен")
             response = await openai_client.chat.completions.create(
@@ -65,7 +65,7 @@ async def create_mnemonic(word: str, prompt: str, model: str) -> Dict[str, Any]:
                 ]
             )
             content = response.choices[0].message.content
-        elif model in available_models["Anthropic"]:
+        elif "claude" in model.lower():
             if not anthropic_client:
                 raise ValueError("API ключ Anthropic не предоставлен")
             response = anthropic_client.completions.create(
@@ -87,9 +87,7 @@ async def create_mnemonic(word: str, prompt: str, model: str) -> Dict[str, Any]:
 
 async def rate_memory(association: str, model: str) -> int:
     try:
-        rating_prompt = "You are a memory expert. Rate the following mnemonic association on a scale from 1 to 100 based on how easy it is to remember. Return only the numeric score."
-        
-        if model in available_models["OpenAI"]:
+        if "gpt" in model.lower():
             if not openai_client:
                 raise ValueError("API ключ OpenAI не предоставлен")
             response = await openai_client.chat.completions.create(
@@ -100,7 +98,7 @@ async def rate_memory(association: str, model: str) -> int:
                 ]
             )
             content = response.choices[0].message.content
-        elif model in available_models["Anthropic"]:
+        elif "claude" in model.lower():
             if not anthropic_client:
                 raise ValueError("API ключ Anthropic не предоставлен")
             response = anthropic_client.completions.create(
