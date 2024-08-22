@@ -10,31 +10,36 @@ import logging
 # Настройка логирования
 logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(levelname)s - %(message)s')
 
+
 # Функция для получения API ключей
 def get_api_keys():
     st.sidebar.header("API Ключи")
-    
+
     openai_key = st.sidebar.text_input("Введите ваш API ключ OpenAI:", type="password", key="openai_input")
     anthropic_key = st.sidebar.text_input("Введите ваш API ключ Anthropic:", type="password", key="anthropic_input")
-    
+
     if st.sidebar.button("Сохранить ключи"):
         st.session_state["openai_key"] = openai_key
         st.session_state["anthropic_key"] = anthropic_key
         st.sidebar.success("Ключи сохранены!")
-    
+
     return st.session_state.get("openai_key", openai_key), st.session_state.get("anthropic_key", anthropic_key)
+
 
 # Получаем API ключи
 openai_api_key, anthropic_api_key = get_api_keys()
+
 
 # Настройка клиентов
 @st.cache_resource
 def get_openai_client(api_key):
     return AsyncOpenAI(api_key=api_key) if api_key else None
 
+
 @st.cache_resource
 def get_anthropic_client(api_key):
     return Anthropic(api_key=api_key) if api_key else None
+
 
 openai_client = get_openai_client(openai_api_key)
 anthropic_client = get_anthropic_client(anthropic_api_key)
@@ -77,7 +82,9 @@ if not selected_models:
 
 # Редактирование стандартного промпта оценки
 default_rating_prompt = "You are a memory expert. Rate the following mnemonic association on a scale from 1 to 100 based on how easy it is to remember. Return only the numeric score."
-rating_prompt = st.text_area("Отредактируйте промпт для оценки запоминаемости:", value=default_rating_prompt, height=100)
+rating_prompt = st.text_area("Отредактируйте промпт для оценки запоминаемости:", value=default_rating_prompt,
+                             height=100)
+
 
 async def create_mnemonic(word: str, prompt: str, model: str) -> Dict[str, Any]:
     try:
@@ -95,22 +102,36 @@ async def create_mnemonic(word: str, prompt: str, model: str) -> Dict[str, Any]:
         elif "claude" in model.lower():
             if not anthropic_client:
                 raise ValueError("API ключ Anthropic не предоставлен")
-            response = anthropic_client.completions.create(
-                model=model,
-                prompt=f"{prompt}\n\nHuman: {word}\n\nAssistant:",
-                max_tokens_to_sample=300
-            )
-            content = response.completion
+            if model.startswith("claude-3"):
+                # Используем новый API сообщений для Claude-3
+                message = anthropic_client.messages.create(
+                    model=model,
+                    max_tokens=1000,
+                    messages=[
+                        {"role": "user", "content": f"{prompt}\n\nWord: {word}"}
+                    ]
+                )
+                content = message.content[0].text
+            else:
+                # Используем старый API для других моделей Claude
+                response = anthropic_client.completions.create(
+                    model=model,
+                    prompt=f"{prompt}\n\nHuman: {word}\n\nAssistant:",
+                    max_tokens_to_sample=300
+                )
+                content = response.completion
         else:
             raise ValueError(f"Неподдерживаемая модель: {model}")
-        
+
         try:
             return json.loads(content)
         except json.JSONDecodeError:
             return {"association": content, "meaning": "", "prompt": ""}
     except Exception as e:
         logging.error(f"Ошибка при создании мнемоники для '{word}' с моделью {model}: {str(e)}")
-        return {"association": f"Ошибка при создании мнемоники с моделью {model}: {str(e)}", "meaning": "", "prompt": ""}
+        return {"association": f"Ошибка при создании мнемоники с моделью {model}: {str(e)}", "meaning": "",
+                "prompt": ""}
+
 
 async def rate_memory(association: str, model: str) -> int:
     try:
@@ -128,15 +149,27 @@ async def rate_memory(association: str, model: str) -> int:
         elif "claude" in model.lower():
             if not anthropic_client:
                 raise ValueError("API ключ Anthropic не предоставлен")
-            response = anthropic_client.completions.create(
-                model=model,
-                prompt=f"{rating_prompt}\n\nHuman: {association}\n\nAssistant:",
-                max_tokens_to_sample=10
-            )
-            content = response.completion
+            if model.startswith("claude-3"):
+                # Используем новый API сообщений для Claude-3
+                message = anthropic_client.messages.create(
+                    model=model,
+                    max_tokens=10,
+                    messages=[
+                        {"role": "user", "content": f"{rating_prompt}\n\nAssociation: {association}"}
+                    ]
+                )
+                content = message.content[0].text
+            else:
+                # Используем старый API для других моделей Claude
+                response = anthropic_client.completions.create(
+                    model=model,
+                    prompt=f"{rating_prompt}\n\nHuman: {association}\n\nAssistant:",
+                    max_tokens_to_sample=10
+                )
+                content = response.completion
         else:
             raise ValueError(f"Неподдерживаемая модель: {model}")
-        
+
         return int(content)
     except ValueError as ve:
         logging.warning(f"Ошибка при оценке запоминаемости: {str(ve)}")
@@ -144,6 +177,7 @@ async def rate_memory(association: str, model: str) -> int:
     except Exception as e:
         logging.error(f"Ошибка при оценке запоминаемости с моделью {model}: {str(e)}")
         return 0
+
 
 async def process_word(word: str, prompts: List[str], models: List[str]) -> Dict[str, Any]:
     word_results = []
@@ -157,6 +191,7 @@ async def process_word(word: str, prompts: List[str], models: List[str]) -> Dict
             word_results.append(mnemonic)
     return {"word": word, "mnemonics": word_results}
 
+
 def run_async(coroutine: Coroutine[Any, Any, Any]) -> Any:
     loop = asyncio.new_event_loop()
     asyncio.set_event_loop(loop)
@@ -165,9 +200,11 @@ def run_async(coroutine: Coroutine[Any, Any, Any]) -> Any:
     finally:
         loop.close()
 
+
 @st.cache_data
 def cached_process_words(words: List[str], prompts: List[str], models: List[str]) -> List[Dict[str, Any]]:
     return [run_async(process_word(word, prompts, models)) for word in words]
+
 
 st.title('Мнемоническая ассоциация и оценка запоминаемости')
 
@@ -180,7 +217,7 @@ st.subheader("Введите промпты:")
 num_prompts = st.number_input("Количество промптов", min_value=1, value=1, step=1)
 prompts = []
 for i in range(num_prompts):
-    prompt = st.text_area(f"Промпт {i+1}", height=100, key=f"prompt_{i}")
+    prompt = st.text_area(f"Промпт {i + 1}", height=100, key=f"prompt_{i}")
     prompts.append(prompt)
 
 if st.button('Генерировать мнемоники и оценки'):
@@ -193,7 +230,8 @@ if st.button('Генерировать мнемоники и оценки'):
     else:
         with st.spinner('Обработка...'):
             results = cached_process_words(words, prompts, selected_models)
-            prompt_scores: Dict[int, Dict[str, List[int]]] = {i: {model: [] for model in selected_models} for i in range(len(prompts))}
+            prompt_scores: Dict[int, Dict[str, List[int]]] = {i: {model: [] for model in selected_models} for i in
+                                                              range(len(prompts))}
 
             for result in results:
                 for j, mnemonic in enumerate(result['mnemonics']):
@@ -215,7 +253,7 @@ if st.button('Генерировать мнемоники и оценки'):
             # Вывод средних оценок запоминаемости для каждого промпта и модели
             st.subheader("Средние оценки запоминаемости:")
             for i, model_scores in prompt_scores.items():
-                st.write(f"Промпт {i+1}:")
+                st.write(f"Промпт {i + 1}:")
                 for model, scores in model_scores.items():
                     avg_score = mean(scores) if scores else 0
                     st.write(f"  {model}: {avg_score:.2f}")
