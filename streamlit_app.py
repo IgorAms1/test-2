@@ -39,13 +39,40 @@ def get_anthropic_client(api_key):
 openai_client = get_openai_client(openai_api_key)
 anthropic_client = get_anthropic_client(anthropic_api_key)
 
+# Предлагаемые модели
+suggested_models = [
+    "claude-3-5-sonnet-20240620",
+    "claude-3-opus-20240229",
+    "claude-3-sonnet-20240229",
+    "claude-3-haiku-20240307",
+    "gpt-4o",
+    "chatgpt-4o-latest",
+    "gpt-4o-mini",
+    "gpt-4",
+    "gpt-4-turbo"
+]
+
 # Ввод моделей пользователем
-st.subheader("Введите модели для использования:")
-models_input = st.text_area("Введите названия моделей (по одной на строку):", height=100)
-selected_models = [model.strip() for model in models_input.split('\n') if model.strip()]
+st.subheader("Выберите модели для использования:")
+selected_models = st.multiselect(
+    "Выберите модели из списка или введите свои:",
+    options=suggested_models,
+    default=[],
+    key="model_selection"
+)
+
+# Дополнительное поле для ввода пользовательских моделей
+custom_models = st.text_area(
+    "Введите дополнительные модели (по одной на строку):",
+    height=100,
+    key="custom_models"
+)
+
+# Объединение выбранных и пользовательских моделей
+selected_models += [model.strip() for model in custom_models.split('\n') if model.strip()]
 
 if not selected_models:
-    st.warning("Пожалуйста, введите хотя бы одну модель для продолжения.")
+    st.warning("Пожалуйста, выберите хотя бы одну модель для продолжения.")
     st.stop()
 
 # Редактирование стандартного промпта оценки
