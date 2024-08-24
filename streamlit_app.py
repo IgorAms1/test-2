@@ -314,7 +314,8 @@ def main():
 Созвучие: [оценка]
 Визуальная ассоциация: [оценка]
 Логическая связь: [оценка]
-Культурная и эмоциональная релевантность: [оценка]"""
+Культурная и эмоциональная релевантность: [оценка]
+Возвращай только числовые значения."""
         st.session_state.num_prompts = 1
         st.session_state.prompts = [""]
         st.session_state.color_scheme = "Viridis"
@@ -332,12 +333,12 @@ def main():
 
     # Предлагаемые модели
     suggested_models = [
+         "chatgpt-4o-latest",
         "claude-3-5-sonnet-20240620",
         "claude-3-opus-20240229",
         "claude-3-sonnet-20240229",
         "claude-3-haiku-20240307",
         "gpt-4o",
-        "chatgpt-4o-latest",
         "gpt-4o-mini",
         "gpt-4",
         "gpt-4-turbo"
